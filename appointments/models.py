@@ -20,6 +20,11 @@ class Appointment(models.Model):
         on_delete=models.PROTECT,
         related_name="appointments",
     )
+    staff = models.ForeignKey(
+    "businesses.Staff",
+    on_delete=models.PROTECT,
+    related_name="appointments",
+)
     date = models.DateField()
     start_time = models.TimeField()
     status = models.CharField(

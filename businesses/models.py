@@ -21,6 +21,30 @@ class Business(models.Model):
     
     
     
+class Staff(models.Model):
+    business = models.ForeignKey(
+        Business,
+        on_delete=models.CASCADE,
+        related_name="staff",
+    )
+    name = models.CharField(max_length=150)
+    phone = models.CharField(max_length=20, blank=True)
+    is_active = models.BooleanField(default=True)
+
+    services = models.ManyToManyField(
+        "services.Service",
+        related_name="staff_members",
+        blank=True,
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.name
+    
+    
+    
     
 class WorkingHours(models.Model):
     class WeekDay(models.IntegerChoices):
