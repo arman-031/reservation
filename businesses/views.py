@@ -1,8 +1,8 @@
 from django.shortcuts import get_object_or_404
-    )
 
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
-class WorkingHoursListAPIView(APIView):
 from .models import Business, Staff, WorkingHours
 from common.permissions import IsBusinessOwner
 from .serializers import StaffSerializer, WorkingHoursSerializer
@@ -150,7 +150,7 @@ class WorkingHoursListAPIView(APIView):
 
 
 
-    class WorkingHoursDetailAPIView(APIView):
+class WorkingHoursDetailAPIView(APIView):
     permission_classes = [IsBusinessOwner]
 
     def patch(self, request, business_id, day_of_week):

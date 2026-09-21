@@ -62,7 +62,7 @@ class StaffSerializer(serializers.ModelSerializer):
         return instance
 
 
-    class WorkingHoursSerializer(serializers.ModelSerializer):
+class WorkingHoursSerializer(serializers.ModelSerializer):
     class Meta:
         model = WorkingHours
         fields = (

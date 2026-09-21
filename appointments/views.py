@@ -1,11 +1,12 @@
-
 from django.shortcuts import get_object_or_404
+
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from businesses.models import Business, Staff
 from services.models import Service
+
 from .serializers import (
     AppointmentCreateSerializer,
     AvailabilityQuerySerializer,
@@ -51,7 +52,7 @@ class AvailabilityAPIView(APIView):
         if not staff.services.filter(id=service.id).exists():
             return Response(
                 {
-                    "detail": "Staff cannot perform this service."
+                    "detail": "Staff cannot perform this service.",
                 },
                 status=400,
             )
@@ -107,8 +108,9 @@ class AvailabilityAPIView(APIView):
         )
 
 
-    class AppointmentCreateAPIView(APIView):
+class AppointmentCreateAPIView(APIView):
     permission_classes = [IsAuthenticated]
+
     def post(self, request):
         serializer = AppointmentCreateSerializer(
             data=request.data,
