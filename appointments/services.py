@@ -1,4 +1,4 @@
-from datetime import datetime, date, timedelta
+from datetime import date, datetime, timedelta
 
 from businesses.models import WorkingHours
 
@@ -113,3 +113,36 @@ def create_appointment(
 )
 
     return appointment
+
+
+
+def generate_slots(
+    opening_time,
+    closing_time,
+    duration_minutes,
+    interval_minutes=30,
+):
+    slots = []
+
+    current_datetime = datetime.combine(
+        date.today(),
+        opening_time,
+    )
+
+    closing_datetime = datetime.combine(
+        date.today(),
+        closing_time,
+    )
+
+    while (
+        current_datetime
+        + timedelta(minutes=duration_minutes)
+        <= closing_datetime
+    ):
+        slots.append(current_datetime.time())
+
+        current_datetime += timedelta(
+            minutes=interval_minutes,
+        )
+
+    return slots
