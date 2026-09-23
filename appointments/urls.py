@@ -1,8 +1,9 @@
 from django.urls import path
 
-from .views import AvailabilityAPIView
 from .views import (
+    AppointmentCancelAPIView,
     AppointmentCreateAPIView,
+    AppointmentListAPIView,
     AvailabilityAPIView,
 )
 
@@ -16,5 +17,15 @@ urlpatterns = [
         "api/appointments/",
         AppointmentCreateAPIView.as_view(),
         name="appointment-create",
+    ),
+    path(
+        "api/appointments/list/",
+        AppointmentListAPIView.as_view(),
+        name="appointment-list",
+    ),
+    path(
+    "api/appointments/<int:appointment_id>/cancel/",
+    AppointmentCancelAPIView.as_view(),
+    name="appointment-cancel",
     ),
 ]

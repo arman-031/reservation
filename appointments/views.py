@@ -1,5 +1,5 @@
 from django.shortcuts import get_object_or_404
-
+from .models import Appointment
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -9,10 +9,12 @@ from services.models import Service
 
 from .serializers import (
     AppointmentCreateSerializer,
+    AppointmentSerializer,
     AvailabilityQuerySerializer,
 )
 from .services import (
     calculate_end_time,
+    cancel_appointment,
     create_appointment,
     generate_slots,
     has_conflicting_appointment,
@@ -62,14 +64,9 @@ class AvailabilityAPIView(APIView):
         ).first()
 
         if (
-            working_hours is None
-            or working_hours.is_closed
             or not working_hours.opening_time
             or not working_hours.closing_time
         ):
-            return Response(
-                {
-                    "date": appointment_date,
                     "service": service.name,
                     "staff": staff.name,
                     "available_slots": [],
@@ -154,4 +151,65 @@ class AppointmentCreateAPIView(APIView):
                 "status": appointment.status,
             },
             status=201,
+        )
+
+
+
+class AppointmentListAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        appointments = (
+            Appointment.objects
+            .filter(customer=request.user)
+            .select_related("service", "staff")
+            .order_by("-date", "-start_time")
+        )
+
+        serializer = AppointmentSerializer(
+            appointments,
+            many=True,
+        )
+
+        return Response(serializer.data)
+
+
+
+
+class AppointmentCancelAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, appointment_id):
+        appointment = get_object_or_404(
+            Appointment.objects.select_related(
+                "service__business",
+            ),
+            id=appointment_id,
+        )
+
+        try:
+            appointment = cancel_appointment(
+                appointment=appointment,
+                user=request.user,
+            )
+        except PermissionError:
+            return Response(
+                {
+                    "detail": (
+                        "You do not have permission "
+                        "to cancel this appointment."
+                    )
+                },
+                status=403,
+            )
+        except ValueError as exc:
+            return Response(
+                {
+                    "detail": str(exc),
+                },
+                status=400,
+            )
+
+        return Response(
+            AppointmentSerializer(appointment).data,
         )

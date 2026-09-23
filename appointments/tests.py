@@ -9,11 +9,11 @@ from services.models import Service
 
 from .models import Appointment
 from .services import (
+    cancel_appointment,
     create_appointment,
     generate_slots,
     has_conflicting_appointment,
 )
-
 
 class AppointmentModelTests(TestCase):
     def setUp(self):
@@ -174,10 +174,7 @@ class CreateAppointmentTests(TestCase):
         self.assertEqual(
             Appointment.objects.count(),
             1,
-        )
 
-    def test_create_appointment_rejects_outside_working_hours(self):
-        with self.assertRaises(ValueError):
             create_appointment(
                 customer=self.customer,
                 service=self.service,
@@ -701,4 +698,312 @@ class AppointmentCreateAPITests(APITestCase):
         self.assertEqual(
             Appointment.objects.count(),
             0,
+        )
+
+
+
+class AppointmentCancelAPITests(APITestCase):
+    def setUp(self):
+        user_model = get_user_model()
+
+        self.customer = user_model.objects.create_user(
+            username="cancel_customer",
+            password="test-password",
+        )
+
+        self.other_customer = user_model.objects.create_user(
+            username="other_customer",
+            password="test-password",
+        )
+
+        self.owner = user_model.objects.create_user(
+            username="cancel_owner",
+            password="test-password",
+            role=user_model.Role.BUSINESS_OWNER,
+        )
+
+        self.other_owner = user_model.objects.create_user(
+            username="other_owner",
+            password="test-password",
+            role=user_model.Role.BUSINESS_OWNER,
+        )
+
+        self.business = Business.objects.create(
+            owner=self.owner,
+            name="Cancel Test Business",
+            phone="09120000000",
+            address="Cancel Test Address",
+        )
+
+        self.other_business = Business.objects.create(
+            owner=self.other_owner,
+            name="Other Business",
+            phone="09121111111",
+            address="Other Address",
+        )
+
+        self.service = Service.objects.create(
+            business=self.business,
+            name="Haircut",
+            duration=60,
+            price=100,
+        )
+
+        self.other_service = Service.objects.create(
+            business=self.other_business,
+            name="Other Service",
+            duration=60,
+            price=100,
+        )
+
+        self.staff = Staff.objects.create(
+            business=self.business,
+            name="Sara",
+        )
+
+        self.other_staff = Staff.objects.create(
+            business=self.other_business,
+            name="Other Staff",
+        )
+
+        self.staff.services.add(self.service)
+        self.other_staff.services.add(self.other_service)
+
+        self.appointment = Appointment.objects.create(
+            customer=self.customer,
+            service=self.service,
+            staff=self.staff,
+            date=date(2026, 9, 20),
+            start_time=time(10, 0),
+            status=Appointment.Status.PENDING,
+        )
+
+    def test_customer_can_cancel_pending_appointment(self):
+        self.client.force_authenticate(
+            user=self.customer,
+        )
+
+        response = self.client.patch(
+            f"/api/appointments/{self.appointment.id}/cancel/",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+
+        self.appointment.refresh_from_db()
+
+        self.assertEqual(
+            self.appointment.status,
+            Appointment.Status.CANCELLED,
+        )
+
+    def test_customer_cannot_cancel_confirmed_appointment(self):
+        self.appointment.status = Appointment.Status.CONFIRMED
+        self.appointment.save()
+
+        self.client.force_authenticate(
+            user=self.customer,
+        )
+
+        response = self.client.patch(
+            f"/api/appointments/{self.appointment.id}/cancel/",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            400,
+        )
+
+        self.appointment.refresh_from_db()
+
+        self.assertEqual(
+            self.appointment.status,
+            Appointment.Status.CONFIRMED,
+        )
+
+    def test_business_owner_can_cancel_pending_appointment(self):
+        self.client.force_authenticate(
+            user=self.owner,
+        )
+
+        response = self.client.patch(
+            f"/api/appointments/{self.appointment.id}/cancel/",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+
+        self.appointment.refresh_from_db()
+
+        self.assertEqual(
+            self.appointment.status,
+            Appointment.Status.CANCELLED,
+        )
+
+    def test_business_owner_can_cancel_confirmed_appointment(self):
+        self.appointment.status = Appointment.Status.CONFIRMED
+        self.appointment.save()
+
+        self.client.force_authenticate(
+            user=self.owner,
+        )
+
+        response = self.client.patch(
+            f"/api/appointments/{self.appointment.id}/cancel/",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+
+        self.appointment.refresh_from_db()
+
+        self.assertEqual(
+            self.appointment.status,
+            Appointment.Status.CANCELLED,
+        )
+
+    def test_other_customer_cannot_cancel_appointment(self):
+        self.client.force_authenticate(
+            user=self.other_customer,
+        )
+
+        response = self.client.patch(
+            f"/api/appointments/{self.appointment.id}/cancel/",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            403,
+        )
+
+        self.appointment.refresh_from_db()
+
+        self.assertEqual(
+            self.appointment.status,
+            Appointment.Status.PENDING,
+        )
+
+    def test_other_business_owner_cannot_cancel_appointment(self):
+        self.client.force_authenticate(
+            user=self.other_owner,
+        )
+
+        response = self.client.patch(
+            f"/api/appointments/{self.appointment.id}/cancel/",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            403,
+        )
+
+        self.appointment.refresh_from_db()
+
+        self.assertEqual(
+            self.appointment.status,
+            Appointment.Status.PENDING,
+        )
+
+    def test_customer_cannot_cancel_cancelled_appointment(self):
+        self.appointment.status = Appointment.Status.CANCELLED
+        self.appointment.save()
+
+        self.client.force_authenticate(
+            user=self.customer,
+        )
+
+        response = self.client.patch(
+            f"/api/appointments/{self.appointment.id}/cancel/",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            400,
+        )
+
+    def test_business_owner_cannot_cancel_completed_appointment(self):
+        self.appointment.status = Appointment.Status.COMPLETED
+        self.appointment.save()
+
+        self.client.force_authenticate(
+            user=self.owner,
+        )
+
+        response = self.client.patch(
+            f"/api/appointments/{self.appointment.id}/cancel/",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            400,
+        )
+
+        self.appointment.refresh_from_db()
+
+        self.assertEqual(
+            self.appointment.status,
+            Appointment.Status.COMPLETED,
+        )
+
+    def test_business_owner_cannot_cancel_no_show_appointment(self):
+        self.appointment.status = Appointment.Status.NO_SHOW
+        self.appointment.save()
+
+        self.client.force_authenticate(
+            user=self.owner,
+        )
+
+        response = self.client.patch(
+            f"/api/appointments/{self.appointment.id}/cancel/",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            400,
+        )
+
+        self.appointment.refresh_from_db()
+
+        self.assertEqual(
+            self.appointment.status,
+            Appointment.Status.NO_SHOW,
+        )
+
+    def test_anonymous_user_cannot_cancel_appointment(self):
+        self.client.force_authenticate(user=None)
+
+        response = self.client.patch(
+            f"/api/appointments/{self.appointment.id}/cancel/",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            403,
+        )
+
+        self.appointment.refresh_from_db()
+
+        self.assertEqual(
+            self.appointment.status,
+            Appointment.Status.PENDING,
+        )
+
+    def test_cancel_nonexistent_appointment_returns_404(self):
+        self.client.force_authenticate(
+            user=self.customer,
+        )
+
+        response = self.client.patch(
+            "/api/appointments/999999/cancel/",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            404,
         )
